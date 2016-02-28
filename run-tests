@@ -40,7 +40,7 @@ _EOF_
 
 echo -e ">> ${COLOR_WHITE}Executing tests...${COLOR_RESET}"
 
-for file in ${@:-${ROOT}/spec/*.fkss}
+for file in ${@:-${ROOT}/spec/*.scss}
 do
 	# Check if file exists and is readable.
 	if [ ! -f "${file}" ]
