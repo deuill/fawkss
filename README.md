@@ -1,4 +1,4 @@
-# Fawkss — The CSS preprocessor for people who dislike CSS preprocessors [![MIT License][license-svg]][license-url]
+# Fawkss — The simple CSS preprocessor [![MIT License][license-svg]][license-url]
 
 Fawkss [fɔːks] is a simple CSS preprocessor built as a single AWK (nawk/gawk/mawk) script. Syntactically, it borrows as much as possible from the SASS language, for convenience and familiarity.
 
