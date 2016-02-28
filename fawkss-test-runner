@@ -1,0 +1,86 @@
+#!/bin/bash
+#
+# Test runner for Fawkss.
+
+# --------------
+# USER VARIABLES
+# --------------
+
+# Current working directory.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Fawkss main script location.
+FAWKSS_SCRIPT="${ROOT}/fawkss"
+
+# ANSI Color definitions.
+COLOR_WHITE="\033[1m"
+COLOR_RED="\033[31m"
+COLOR_GREEN="\033[32m"
+COLOR_RESET="\033[0m"
+
+# --------------
+# TEST EXECUTION
+# --------------
+
+echo -e ">> ${COLOR_WHITE}Executing tests...${COLOR_RESET}"
+
+# Initialize summary count array.
+summary=(0 0 0)
+
+for file in ${@:-${ROOT}/spec/*.fkss}
+do
+	# Check if file exists and is readable.
+	if [ ! -f "${file}" ]
+	then
+		echo -e ">> ${COLOR_RED}Failed to find test file '${file}'${COLOR_RESET}"
+		continue
+	fi
+
+	# Increase count of total tests run.
+	summary[0]=$((${summary[0]} + 1))
+
+	# Compile test file and get actual and expected output.
+	read -d '' generate_actual <<-'_EOF_'
+		/--- TEST ---/     { test=1; next }
+		/--- EXPECTED ---/ { print "x"; exit }
+		test { print }
+	_EOF_
+
+	actual=$(awk "${generate_actual}" "${file}")
+
+	read -d '' generate_expected <<-'_EOF_'
+		/--- EXPECTED ---/ { expected=1; next }
+		/--- END ---/      { print "x"; exit }
+		expected { print }
+	_EOF_
+
+	expected=$(awk "${generate_expected}" "${file}")
+
+	# Get diff between expected and actual output.
+	result=$(colordiff -ud <(echo "${expected%x}") <(echo "${actual%x}") | tail -n +3)
+
+	# Echo per-test results.
+	echo -ne ">> ${COLOR_WHITE}Testing file '$(basename ${file})'...${COLOR_RESET} "
+
+	if [ "x${result}" != "x" ]
+	then
+		# Increase total of failed tests run.
+		summary[1]=$((${summary[1]} + 1))
+
+		echo -e "${COLOR_RED}FAIL${COLOR_RESET}"
+		echo "${result}"
+	else
+		# Increase total of successful tests run.
+		summary[2]=$((${summary[2]} + 1))
+
+		echo -e "${COLOR_GREEN}OK${COLOR_RESET}"
+	fi
+
+	echo -e ">> ${COLOR_WHITE}End of test for file '$(basename ${file})'${COLOR_RESET}"
+done
+
+# Echo total results.
+echo -ne ">> ${COLOR_WHITE}Summary:${COLOR_RESET} "
+echo -ne "Total ${COLOR_WHITE}${summary[0]}${COLOR_RESET}, "
+echo -ne "Failed ${COLOR_RED}${summary[1]}${COLOR_RESET}, "
+echo -e  "Successful ${COLOR_GREEN}${summary[2]}${COLOR_RESET}"

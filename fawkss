@@ -1,0 +1,8 @@
+#!/usr/bin/awk -f
+#
+# Fawkss is a CSS preprocessor for people who dislike CSS preprocessors. It
+# implements a subset of the SCSS syntax while remaining relatively simple.
+
+{
+	print
+}

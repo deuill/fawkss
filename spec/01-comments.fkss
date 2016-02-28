@@ -1,0 +1,21 @@
+//
+// Simple comment tests for Fawkss.
+//
+
+--- TEST ---
+
+/**
+ * This should not appear in the final source code.
+ */
+
+// Neither should this.
+
+:root {} // This rule should appear, but the comment shouldn't.
+
+--- EXPECTED ---
+
+
+
+:root {}
+
+--- END ---
