@@ -3,6 +3,71 @@
 # Fawkss is a CSS preprocessor for people who dislike CSS preprocessors. It
 # implements a subset of the SCSS syntax while remaining relatively simple.
 
+# ------------------
+# Built-in functions
+# ------------------
+
+# Returns the index of the last occurence of a substring `s` in `str`, or -1
+# if the substring was not found.
+function lastindex(str, s) {
+	match(str, ".*" s)
+	return max(RSTART + RLENGTH - 1, -1)
+}
+
+# Finds and returns greatest between two numbers.
+function max(x, y) {
+	return (x > y) ? x : y
+}
+
+# Trims spaces off both ends of a string.
+function trim(str) {
+	match(str, /[:space:]*[^[:space:]]+[:space:]*/)
+	return substr(str, RSTART, RLENGTH)
+}
+
+# ----------------------
+# Pattern matching rules
+# ----------------------
+
+# Match variable definitions.
+$0 ~ /\$[a-zA-Z0-9_]+[ ]*:/ {
+	# Split text in tokens.
+	split($0, token, ":")
+
+	# Get variable name and value.
+	name = trim(substr(token[1], index(token[1], "$")))
+	value = trim(substr(token[2], 0, lastindex(token[2], ";") - 1))
+
+	# Assign variable to global variables table.
+	variables[name] = value
+
+	next
+}
+
+# ------------
+# File parsing
+# ------------
+
+# Match variable uses.
+$0 ~ /\$[a-zA-Z0-9_]+/ {
+	# Replace each variable used with it's concrete value.
+	while (match($0, /\$[a-zA-Z0-9_]+/)) {
+		name = substr($0, RSTART, RLENGTH)
+
+		# Throw error and exit if variable used has not been declared.
+		if (variables[name] == "") {
+			printf "ERROR: Use of undeclared variable '%s' on line %d\n", name, NR | "cat >&2"
+			exit
+		}
+
+		$0 = substr($0, 0, RSTART - 1) variables[name] substr($0, RSTART + RLENGTH, length($0))
+	}
+
+	print
+	next
+}
+
+# All other non-matching lines are printed out as-is.
 {
 	print
 }

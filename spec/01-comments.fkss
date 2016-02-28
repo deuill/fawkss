@@ -5,15 +5,18 @@
 --- TEST ---
 
 /**
- * This should not appear in the final source code.
+ * This will appear in the final source code.
  */
 
-// Neither should this.
+// But this won't.
 
 :root {} // This rule should appear, but the comment shouldn't.
 
 --- EXPECTED ---
 
+/**
+ * This will appear in the final source code.
+ */
 
 
 :root {}

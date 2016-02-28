@@ -18,14 +18,27 @@ COLOR_RED="\033[31m"
 COLOR_GREEN="\033[32m"
 COLOR_RESET="\033[0m"
 
+# Initialize summary count array.
+SUMMARY=(0 0 0)
+
+# Helpers for extracting sections of test files.
+read -d '' SECTION_TEST <<-'_EOF_'
+	/--- TEST ---/     { test = 1; next }
+	/--- EXPECTED ---/ { exit }
+	test { print }
+_EOF_
+
+read -d '' SECTION_EXPECTED <<-'_EOF_'
+	/--- EXPECTED ---/ { expected = 1; next }
+	/--- END ---/      { exit }
+	expected { print }
+_EOF_
+
 # --------------
 # TEST EXECUTION
 # --------------
 
 echo -e ">> ${COLOR_WHITE}Executing tests...${COLOR_RESET}"
-
-# Initialize summary count array.
-summary=(0 0 0)
 
 for file in ${@:-${ROOT}/spec/*.fkss}
 do
@@ -37,27 +50,10 @@ do
 	fi
 
 	# Increase count of total tests run.
-	summary[0]=$((${summary[0]} + 1))
-
-	# Compile test file and get actual and expected output.
-	read -d '' generate_actual <<-'_EOF_'
-		/--- TEST ---/     { test=1; next }
-		/--- EXPECTED ---/ { print "x"; exit }
-		test { print }
-	_EOF_
-
-	actual=$(awk "${generate_actual}" "${file}")
-
-	read -d '' generate_expected <<-'_EOF_'
-		/--- EXPECTED ---/ { expected=1; next }
-		/--- END ---/      { print "x"; exit }
-		expected { print }
-	_EOF_
-
-	expected=$(awk "${generate_expected}" "${file}")
+	SUMMARY[0]=$((${SUMMARY[0]} + 1))
 
 	# Get diff between expected and actual output.
-	result=$(colordiff -ud <(echo "${expected%x}") <(echo "${actual%x}") | tail -n +3)
+	result=$(colordiff -ud <(awk "${SECTION_EXPECTED}" "${file}") <(exec ${FAWKSS_SCRIPT} <(awk "${SECTION_TEST}" "${file}")) | tail -n +3)
 
 	# Echo per-test results.
 	echo -ne ">> ${COLOR_WHITE}Testing file '$(basename ${file})'...${COLOR_RESET} "
@@ -65,13 +61,13 @@ do
 	if [ "x${result}" != "x" ]
 	then
 		# Increase total of failed tests run.
-		summary[1]=$((${summary[1]} + 1))
+		SUMMARY[1]=$((${SUMMARY[1]} + 1))
 
 		echo -e "${COLOR_RED}FAIL${COLOR_RESET}"
 		echo "${result}"
 	else
 		# Increase total of successful tests run.
-		summary[2]=$((${summary[2]} + 1))
+		SUMMARY[2]=$((${SUMMARY[2]} + 1))
 
 		echo -e "${COLOR_GREEN}OK${COLOR_RESET}"
 	fi
@@ -81,6 +77,6 @@ done
 
 # Echo total results.
 echo -ne ">> ${COLOR_WHITE}Summary:${COLOR_RESET} "
-echo -ne "Total ${COLOR_WHITE}${summary[0]}${COLOR_RESET}, "
-echo -ne "Failed ${COLOR_RED}${summary[1]}${COLOR_RESET}, "
-echo -e  "Successful ${COLOR_GREEN}${summary[2]}${COLOR_RESET}"
+echo -ne "Total ${COLOR_WHITE}${SUMMARY[0]}${COLOR_RESET}, "
+echo -ne "Failed ${COLOR_RED}${SUMMARY[1]}${COLOR_RESET}, "
+echo -e  "Successful ${COLOR_GREEN}${SUMMARY[2]}${COLOR_RESET}"

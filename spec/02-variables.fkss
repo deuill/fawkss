@@ -4,13 +4,13 @@
 
 --- TEST ---
 
-$width: 100%;
-$__height1: 10px;
-$12color: black;
+$width    :  100%;
+$__height1:10px;  
+  $12color: black;
 
 .test-element {
-	color: $12color;
-	height: $__height1;
+	color:$12color;
+	height:    $__height1;    
 	width: $width;
 }
 
@@ -18,8 +18,8 @@ $12color: black;
 
 
 .test-element {
-	color: black;
-	height: 10px;
+	color:black;
+	height:    10px;    
 	width: 100%;
 }
 
