@@ -40,7 +40,7 @@ _EOF_
 
 echo -e ">> ${COLOR_WHITE}Executing tests...${COLOR_RESET}"
 
-for file in ${@:-${ROOT}/spec/*.scss}
+for file in ${@:-${ROOT}/tests/*.scss}
 do
 	# Check if file exists and is readable.
 	if [ ! -f "${file}" ]
@@ -71,8 +71,6 @@ do
 
 		echo -e "${COLOR_GREEN}OK${COLOR_RESET}"
 	fi
-
-	echo -e ">> ${COLOR_WHITE}End of test for file '$(basename ${file})'${COLOR_RESET}"
 done
 
 # Echo total results.
