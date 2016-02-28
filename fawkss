@@ -7,6 +7,9 @@
 # Built-in functions
 # ------------------
 
+# This block contains global helper functions, used across different rules, as
+# defined below.
+
 # Returns the index of the last occurence of a substring `s` in `str`, or -1
 # if the substring was not found.
 function lastindex(str, s) {
@@ -25,12 +28,16 @@ function trim(str) {
 	return substr(str, RSTART, RLENGTH)
 }
 
-# ----------------------
-# Pattern matching rules
-# ----------------------
+# ----------------
+# Rule definitions
+# ----------------
 
-# Match variable definitions.
-$0 ~ /\$[a-zA-Z0-9_]+[ ]*:/ {
+# This block contains rule definitions used across Fawkss. A rule is defined as
+# an exclusive match against a single line which always contines on to the next
+# line. As such, rules are not composable.
+
+# Variable definition rule.
+$0 ~ /^[ ]*\$[a-zA-Z0-9_]+[ ]*:/ {
 	# Split text in tokens.
 	split($0, token, ":")
 
@@ -40,17 +47,48 @@ $0 ~ /\$[a-zA-Z0-9_]+[ ]*:/ {
 
 	# Assign variable to global variables table.
 	variables[name] = value
-
 	next
 }
 
-# ------------
-# File parsing
-# ------------
+# -----------------
+# Line manipulation
+# -----------------
+
+# This block contains line manipulation rules which modify lines to be printed.
+
+# Match inline comments.
+$0 ~ /\/\// {
+	# Remove any special cases from the line.
+	while (match($0, /['"][^\/\/]*\/\/[^'"]*['"]/)) {
+		special[len += 1] = RSTART ":" substr($0, RSTART, RLENGTH)
+		$0 = substr($0, 0, RSTART - 1) substr($0, RSTART + RLENGTH, length($0))
+	}
+
+	# Remove inline comments from line.
+	while (match($0, /[ ]*\/\/.*$/)) {
+		$0 = substr($0, 0, RSTART - 1) substr($0, RSTART + RLENGTH, length($0))
+	}
+
+	# Reinsert special cases in their predefined positions.
+	for (i = len; i != 0; i--) {
+		pos = substr(special[i], 0, index(special[i], ":") - 1)
+
+		# Do not attempt to reinsert special case string if string has been
+		# truncated to less the original position of the string.
+		if (pos > length($0)) {
+			continue
+		}
+
+		str = substr(special[i], index(special[i], ":") + 1, length(special[i]))
+		$0 = substr($0, 0, pos - 1) str substr($0, pos, length($0))
+	}
+
+	len = 0
+}
 
 # Match variable uses.
-$0 ~ /\$[a-zA-Z0-9_]+/ {
-	# Replace each variable used with it's concrete value.
+$0 ~ /^.+:[ ]*\$[a-zA-Z0-9_]+[ ]*/ {
+	# Replace each variable used with its concrete value.
 	while (match($0, /\$[a-zA-Z0-9_]+/)) {
 		name = substr($0, RSTART, RLENGTH)
 
@@ -62,12 +100,23 @@ $0 ~ /\$[a-zA-Z0-9_]+/ {
 
 		$0 = substr($0, 0, RSTART - 1) variables[name] substr($0, RSTART + RLENGTH, length($0))
 	}
+}
 
-	print
+# --------
+# Printing
+# --------
+
+# Do not print more than two consecutive newlines.
+!NF && newlines += 1 {
+	if (newlines < 2) {
+		print
+	}
+
 	next
 }
 
-# All other non-matching lines are printed out as-is.
+# Print non-blank line and reset newline count.
 {
+	newlines = 0
 	print
 }

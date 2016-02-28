@@ -10,17 +10,14 @@ $__height1:10px;
 
 .test-element {
 	color:$12color;
-	height:    $__height1;    
-	width: $width;
+	height:    $__height1; width: $width;   
 }
 
 --- EXPECTED ---
 
-
 .test-element {
 	color:black;
-	height:    10px;    
-	width: 100%;
+	height:    10px; width: 100%;   
 }
 
 --- END ---
