@@ -22,10 +22,31 @@ function max(x, y) {
 	return (x > y) ? x : y
 }
 
-# Trims spaces off both ends of a string.
-function trim(str) {
-	match(str, /[:space:]*[^[:space:]]+[:space:]*/)
+# Trims character class (whitespace by default) off both ends of a string.
+function trim(str, chars) {
+	t = (chars != "") ? chars : ":space:"
+	match(str, "[" t "]*[^[" t "]]+[" t "]*")
+
 	return substr(str, RSTART, RLENGTH)
+}
+
+# --------------
+# Initialization
+# --------------
+
+# This block contains initialization logic for Fawkss.
+
+BEGIN {
+	# Error messages used across Fawkss.
+	errors["unused-variable"] = "ERROR: Use of undeclared variable '%s' on line %d\n"
+
+	# Rule definitions. Each rule corresponds to a regular expression matching
+	# that rule on any given line.
+	rules["comment"]           = "[ ]*//.*$"
+	rules["comment-exception"] = "['\"][^//]*//[^'\"]*['\"]"
+
+	rules["variable-name"]   = "\\$[a-zA-Z0-9_]+"
+	rules["variable-define"] = "^[ ]*" rules["variable-name"] "[ ]*:"
 }
 
 # ----------------
@@ -37,7 +58,7 @@ function trim(str) {
 # line. As such, rules are not composable.
 
 # Variable definition rule.
-$0 ~ /^[ ]*\$[a-zA-Z0-9_]+[ ]*:/ {
+$0 ~ rules["variable-define"] {
 	# Split text in tokens.
 	split($0, token, ":")
 
@@ -57,15 +78,15 @@ $0 ~ /^[ ]*\$[a-zA-Z0-9_]+[ ]*:/ {
 # This block contains line manipulation rules which modify lines to be printed.
 
 # Match inline comments.
-$0 ~ /\/\// {
+$0 ~ rules["comment"] {
 	# Remove any special cases from the line.
-	while (match($0, /['"][^\/\/]*\/\/[^'"]*['"]/)) {
+	while (match($0, rules["comment-exception"])) {
 		special[len += 1] = RSTART ":" substr($0, RSTART, RLENGTH)
 		$0 = substr($0, 0, RSTART - 1) substr($0, RSTART + RLENGTH, length($0))
 	}
 
 	# Remove inline comments from line.
-	while (match($0, /[ ]*\/\/.*$/)) {
+	while (match($0, rules["comment"])) {
 		$0 = substr($0, 0, RSTART - 1) substr($0, RSTART + RLENGTH, length($0))
 	}
 
@@ -87,14 +108,14 @@ $0 ~ /\/\// {
 }
 
 # Match variable uses.
-$0 ~ /^.+:[ ]*\$[a-zA-Z0-9_]+[ ]*/ {
-	# Replace each variable used with its concrete value.
-	while (match($0, /\$[a-zA-Z0-9_]+/)) {
+$0 ~ rules["variable-name"] {
+	# Replace each variable use with its concrete value.
+	while (match($0, rules["variable-name"])) {
 		name = substr($0, RSTART, RLENGTH)
 
 		# Throw error and exit if variable used has not been declared.
 		if (variables[name] == "") {
-			printf "ERROR: Use of undeclared variable '%s' on line %d\n", name, NR | "cat >&2"
+			printf errors["unused-variable"], name, NR | "cat >&2"
 			exit
 		}
 
@@ -107,8 +128,8 @@ $0 ~ /^.+:[ ]*\$[a-zA-Z0-9_]+[ ]*/ {
 # --------
 
 # Do not print more than two consecutive newlines.
-!NF && newlines += 1 {
-	if (newlines < 2) {
+!NF {
+	if ((newlines += 1) < 2) {
 		print
 	}
 
