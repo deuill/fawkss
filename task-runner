@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# Task runner for Fawks. Used for producing documentation, running test cases,
+# and other similar tasks.
+
+# ----------------
+# Global variables
+# ----------------
+
+# Current working directory.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Fawkss main script location.
+FAWKSS="${ROOT}/fawkss"
+
+# ANSI Color definitions.
+WHITE="\033[1m"
+UNDERLINE="\033[4m"
+RED="\033[31m"
+GREEN="\033[32m"
+BLUE="\033[36m"
+RESET="\033[0m"
+
+# ---------------
+# Task defintions
+# ---------------
+
+## doc - Build documentation from source file in Markdown format.
+function task_doc() {
+	read -d '' extract_markdown <<-'_EOF_'
+		/^(#|# .*)$/ {if (f==1) {f=0; printf "```\\n\\n"} print substr($0, 3)}
+		/^[^#]/ {if (f==0) {f=1; printf "\\n```awk\\n"} print}
+		!NF {print}
+		END {if (f==1) {printf "```\\n"}}
+	_EOF_
+
+	awk "${extract_markdown}" "${FAWKSS}"
+}
+
+## test - Execute test suite, accepts list of specific files to run.
+function task_test() {
+	local differ=$(which colordiff || which diff)
+	local actual="/--- TEST ---/ {f=1;next} /--- EXPECTED ---/ {exit} f"
+	local expected="/--- EXPECTED ---/ {f=1;next} /--- END ---/ {exit} f"
+	local summary=(0 0)
+
+	echo -e ">> ${WHITE}Executing tests...${RESET}"
+
+	for file in ${@:-${ROOT}/tests/*.scss}
+	do
+		# Check if file exists and is readable.
+		if [ ! -f "${file}" ]
+		then
+			echo -e ">> ${RED}Failed to find test file '${file}'${RESET}"
+			continue
+		fi
+
+		# Get diff between expected and actual output.
+		result=$(${differ} -ud <(awk "${expected}" "${file}") <(exec ${FAWKSS} <(awk "${actual}" "${file}")) | tail -n +3)
+
+		# Echo per-test results.
+		echo -ne ">> ${WHITE}Testing file '$(basename ${file})'...${RESET} "
+
+		if [ "x${result}" != "x" ]
+		then
+			printf "${RED}FAIL${RESET}\n${result}\n"
+			summary[0]=$((${summary[0]} + 1))
+		else
+			printf "${GREEN}OK${RESET}\n"
+			summary[1]=$((${summary[1]} + 1))
+		fi
+	done
+
+	printf ">> ${WHITE}summary:${RESET} "
+	printf "Total ${WHITE}$((${summary[0]} + ${summary[1]}))${RESET}, "
+	printf "Failed ${RED}${summary[0]}${RESET}, "
+	printf "Successful ${GREEN}${summary[1]}${RESET}\n"
+}
+
+function task_help() {
+	printf "Fawkss — The simple CSS preprocessor.\n\n"
+	printf "${UNDERLINE}Available Tasks${RESET}\n\n"
+
+	tasklist="/^##/ {printf \"${BLUE}%10s${RESET}  %s\n\", substr(\$1, 4), \$NF}"
+	awk -F ' - ' "${tasklist}" "${BASH_SOURCE[0]}"
+
+	printf "\n"
+}
+
+# --------------
+# Task execution
+# --------------
+
+action=${1:-help}
+test "$(type -t "task_${action}")" == "function" && task_${action} ${@:2} || task_help
