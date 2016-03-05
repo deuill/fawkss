@@ -1,28 +1,35 @@
 #!/usr/bin/awk -f
 #
+# Fawkss — The simple CSS preprocessor.
+# =====================================
+#
 # Fawkss is a CSS preprocessor for people who dislike CSS preprocessors. It
 # implements a subset of the SCSS syntax while remaining relatively simple.
-
-# ------------------
+#
+# This documentation is built using Markdown syntax, and can be parsed out by
+# running `make doc` in the project root. Please check the project's README file
+# for additional information.
+#
 # Built-in functions
 # ------------------
-
-# This block contains global helper functions, used across different rules, as
-# defined below.
-
-# Returns the index of the last occurence of a substring `s` in `str`, or -1
-# if the substring was not found.
+#
+# This section contains global helper functions, used across different rules, as
+# defined in the next section below.
+#
+# > Function `lastindex` returns the index of the last occurence of a substring
+# > `s` in `str`, or -1 if the substring was not found.
 function lastindex(str, s) {
 	match(str, ".*" s)
 	return max(RSTART + RLENGTH - 1, -1)
 }
 
-# Finds and returns greatest between two numbers.
+# > Function `max` finds and returns greatest between two numbers.
 function max(x, y) {
 	return (x > y) ? x : y
 }
 
-# Trims character class (whitespace by default) off both ends of a string.
+# > Function `trim` removes characters (whitespace by default) off both ends of
+# > the string passed and returns the modified string.
 function trim(str, chars) {
 	t = (chars != "") ? chars : ":space:"
 	match(str, "[" t "]*[^[" t "]]+[" t "]*")
@@ -30,11 +37,10 @@ function trim(str, chars) {
 	return substr(str, RSTART, RLENGTH)
 }
 
-# --------------
 # Initialization
 # --------------
-
-# This block contains initialization logic for Fawkss.
+#
+# This block contains logic for initializing global variables used across Fawkss.
 
 BEGIN {
 	# Error messages used across Fawkss.
@@ -49,15 +55,19 @@ BEGIN {
 	rules["variable-define"] = "^[ ]*" rules["variable-name"] "[ ]*:"
 }
 
-# ----------------
 # Rule definitions
 # ----------------
-
+#
 # This block contains rule definitions used across Fawkss. A rule is defined as
 # an exclusive match against a single line which always contines on to the next
 # line. As such, rules are not composable.
-
-# Variable definition rule.
+#
+# > Match variable declarations, for example:
+# >
+# >     $varname: "value";
+# >
+# > Only one variable declaration can appear on a single line. Redeclaring a
+# > variable overrides the value set for that variable.
 $0 ~ rules["variable-define"] {
 	# Split text in tokens.
 	split($0, token, ":")
@@ -71,13 +81,20 @@ $0 ~ rules["variable-define"] {
 	next
 }
 
-# -----------------
 # Line manipulation
 # -----------------
-
-# This block contains line manipulation rules which modify lines to be printed.
-
-# Match inline comments.
+#
+# This block contains line manipulation for rules defined in the previous section.
+# Each line manipulation rule may modify the current line but should not continue
+# to the next line, in order to allow for cascading effects.
+#
+# > Match inline comments, for example:
+# >
+# >     // This is an inline comment.
+# >     :root{background: white;} // Another inline comment.
+# >
+# > As opposed to regular CSS comments (i.e. `/* */`), inline comments are removed
+# > from the processed result. Inline comments inside string are not removed.
 $0 ~ rules["comment"] {
 	# Remove any special cases from the line.
 	while (match($0, rules["comment-exception"])) {
@@ -107,7 +124,12 @@ $0 ~ rules["comment"] {
 	len = 0
 }
 
-# Match variable uses.
+# > Match variable uses, for example:
+# >
+# >     :root{background: $white;}
+# >
+# > Where `$white` is a previously declared variable. Attempting to use a variable
+# > that has not been defined yet will throw a fatal error.
 $0 ~ rules["variable-name"] {
 	# Replace each variable use with its concrete value.
 	while (match($0, rules["variable-name"])) {
@@ -123,11 +145,14 @@ $0 ~ rules["variable-name"] {
 	}
 }
 
-# --------
-# Printing
-# --------
-
-# Do not print more than two consecutive newlines.
+# Line printing
+# -------------
+#
+# This block contains line-printing rules, for results generated in the above
+# blocks. 
+#
+# > Match empty line. Consecutive empty lines do not print, and are instead
+# > squashed down to a single line.
 !NF {
 	if ((newlines += 1) < 2) {
 		print
@@ -136,7 +161,7 @@ $0 ~ rules["variable-name"] {
 	next
 }
 
-# Print non-blank line and reset newline count.
+# > Match non-black line. Resets newline count, used above.
 {
 	newlines = 0
 	print
