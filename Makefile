@@ -53,6 +53,23 @@ END {
 endef
 export EXTRACT_MARKDOWN
 
+# Template for help text produced by `make help`.
+define HELP_TEXT
+$(BOLD)Fawkss — The simple CSS preprocessor.$(RESET)
+
+This Makefile contains tasks for processing auxiliary actions, such as
+generating documentation or running test cases.
+
+$(UNDERLINE)Available Tasks$(RESET)
+
+$(shell                                                                         \
+	awk -F                                                                      \
+	':|##' '/^##/ {c=$$2; getline; printf "$(BLUE)%10s$(RESET) %s\\n", $$1, c}' \
+	$(MAKEFILE_LIST)                                                            \
+)
+endef
+export HELP_TEXT
+
 # ----------------
 # Rule definitions
 # ----------------
@@ -89,7 +106,4 @@ $(TESTS):
 
 ## Show usage information for this Makefile.
 help:
-	@printf "Fawkss — The simple CSS preprocessor.\n\n"
-	@printf "$(UNDERLINE)Available Tasks$(RESET)\n\n"
-	@awk -F ':|##' '/^##/ {c=$$2; getline; printf "$(BLUE)%10s$(RESET) %s\n", $$1, c}' $(MAKEFILE_LIST)
-	@printf "\n"
+	@printf "$$HELP_TEXT\n"
