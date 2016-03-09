@@ -88,20 +88,27 @@ test-after:
 	@printf ">> $(BOLD)Finished executing tests.$(RESET)\n"
 
 $(TESTS):
+    # Generate temporary test files from concatenated original.
 	@awk "/--- TEST ---/ {f=1;next} /--- EXPECTED ---/ {exit} f" $@ >> $@.test.$(TMPPID)
 	@awk "/--- EXPECTED ---/ {f=1;next} /--- END ---/ {exit} f" $@ >> $@.expected.$(TMPPID)
 
+    # Calculate time and execute Fawkss with test file.
+	$(eval ts = $(shell date +"%s%3N"))
 	@$(FAWKSS) $@.test.$(TMPPID) > $@.actual.$(TMPPID)
-	@printf ">> $(BOLD)Testing file '$@'...$(RESET) "
+	$(eval te = $(shell date +"%s%3N"))
 
+    # Generate diff between expected and actual results and print back to user.
 	@result=$$($(DIFF) -ud $@.actual.$(TMPPID) $@.expected.$(TMPPID) | tail -n +3); \
-	if [ -z "$${result}" ]; then                                                    \
-		printf "$(GREEN)OK$(RESET)\n";                                              \
+	tt=`echo "$(ts) $(te)" | awk '{printf "(%.3fs)\n", (($$2-$$1)/1000)}'`;         \
+	printf ">> $(BOLD)Testing file '$@'...$(RESET) ";                               \
+	if [ -z "$$result" ]; then                                                      \
+		printf "$(GREEN)OK$(RESET) $$tt\n";                                         \
 	else                                                                            \
 		printf "$(RED)FAIL$(RESET)\n";                                              \
-		echo "$${result}";                                                          \
+		echo "$$result";                                                            \
 	fi                                                                              \
 
+    # Clean up temporary files.
 	@rm -f $@.test.$(TMPPID) $@.expected.$(TMPPID) $@.actual.$(TMPPID)
 
 ## Show usage information for this Makefile.

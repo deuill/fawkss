@@ -1,7 +1,7 @@
 #!/usr/bin/awk -f
 #
-# Fawkss — The simple CSS preprocessor.
-# =====================================
+# Fawkss — The [ig]noble CSS preprocessor.
+# ========================================
 #
 # Fawkss is a CSS preprocessor for people who dislike CSS preprocessors. It
 # implements a subset of the SCSS syntax while remaining relatively simple.
@@ -35,6 +35,12 @@ function trim(str, chars) {
 	match(str, "[" t "]*[^[" t "]]+[" t "]*")
 
 	return substr(str, RSTART, RLENGTH)
+}
+
+# > Function `file_exists` checks if file pointed to by `filename` exists, and
+# > returns `1` if true, `0` if false.
+function file_exists(filename) {
+	return (system("[ -e '" filename "' ]") == 0) ? 1 : 0;
 }
 
 # Initialization
@@ -76,7 +82,7 @@ $0 ~ rules["variable-define"] {
 	name = trim(substr(token[1], index(token[1], "$")))
 	value = trim(substr(token[2], 0, lastindex(token[2], ";") - 1))
 
-	# Assign variable to global variables table.
+	# Assign variable to the global variables table.
 	variables[name] = value
 	next
 }
@@ -94,7 +100,7 @@ $0 ~ rules["variable-define"] {
 # >     :root{background: white;} // Another inline comment.
 # >
 # > As opposed to regular CSS comments (i.e. `/* */`), inline comments are removed
-# > from the processed result. Inline comments inside string are not removed.
+# > from the processed result. Inline comments inside strings are not removed.
 $0 ~ rules["comment"] {
 	# Remove any special cases from the line.
 	while (match($0, rules["comment-exception"])) {
@@ -149,7 +155,7 @@ $0 ~ rules["variable-name"] {
 # -------------
 #
 # This block contains line-printing rules, for results generated in the above
-# blocks. 
+# blocks.
 #
 # > Match empty line. Consecutive empty lines do not print, and are instead
 # > squashed down to a single line.

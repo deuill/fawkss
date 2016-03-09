@@ -1,4 +1,4 @@
-# Fawkss — The simple CSS preprocessor [![MIT License][license-svg]][license-url]
+# Fawkss — The [ig]noble CSS preprocessor [![MIT License][license-svg]][license-url]
 
 Fawkss [fɔːks] is a simple CSS preprocessor built as a single AWK (nawk/gawk/mawk) script. Syntactically, it borrows as much as possible from the SASS language, for convenience and familiarity.
 
@@ -8,16 +8,20 @@ This is more of a fun project than a production-ready piece of software, though 
 
 Currently, the following features are implemented:
 
-  * C99/C++-style comments (.i.e. `// This is a comment`)
+  * C99/C++-style comments (i.e. `// This is a comment`)
   * Variables
 
-A full test-suite is provided (depending only on Bash and AWK), which should serve as a good example of the existing feature-set.
+A full test-suite is provided (depending only on `make` and `awk`), which should serve as a good example of the existing feature-set.
 
 ## Roadmap
 
 It is intended that the script never balloons to more than ~1000 lines of code. I'm trying to tackle the most important features yet and see how well they fit within the AWK mindset.
 
 That being said, I do not plan to implement any context-sensitive functionality (such as nesting etc.), which may be nigh-impossible in AWK anyways. Consider it a feature.
+
+## Testing & Documentation
+
+A `Makefile` is provided for running tests and producing documentation for Fawkss. Run `make help` in the project root for more information.
 
 ## Are you kidding me?
 
