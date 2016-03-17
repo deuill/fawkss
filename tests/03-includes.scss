@@ -1,0 +1,22 @@
+//
+// Simple include tests for Fawkss.
+//
+
+--- TEST ---
+
+@include "includes/partial"
+@include "includes/full.scss"
+
+--- EXPECTED ---
+
+.partial {
+	content: 'This is a partial';
+}
+
+.full {
+	content: 'This is a full include';
+	color: #fff;
+	background-color : #000;
+}
+
+--- END ---

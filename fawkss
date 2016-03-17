@@ -4,7 +4,7 @@
 # ========================================
 #
 # Fawkss is a CSS preprocessor for people who dislike CSS preprocessors. It
-# implements a subset of the SCSS syntax while remaining relatively simple.
+# implements a subset of the SASS syntax while remaining relatively simple.
 #
 # This documentation is built using Markdown syntax, and can be parsed out by
 # running `make doc` in the project root. Please check the project's README file
@@ -30,11 +30,25 @@ function max(x, y) {
 
 # > Function `trim` removes characters (whitespace by default) off both ends of
 # > the string passed and returns the modified string.
-function trim(str, chars) {
-	t = (chars != "") ? chars : ":space:"
-	match(str, "[" t "]*[^[" t "]]+[" t "]*")
+function trim(str, ch) {
+	ch = (ch != "") ? ch : ":space:"
+	match(str, "[" ch "]*[^[" ch "]]+[" ch "]*")
 
 	return substr(str, RSTART, RLENGTH)
+}
+
+# > Function `basename` strips the directory name from file paths and returns
+# > the resulting file name.
+function basename(path) {
+	match(path, "[^/]+$")
+	return substr(path, RSTART, RLENGTH)
+}
+
+# > Function `dirname` strips the last component from a path and returns the
+# > resulting path.
+function dirname(path) {
+	match(path, "^.+/")
+	return substr(path, RSTART, RLENGTH)
 }
 
 # > Function `file_exists` checks if file pointed to by `filename` exists, and
@@ -48,33 +62,94 @@ function file_exists(filename) {
 #
 # This block contains logic for initializing global variables used across Fawkss.
 
-BEGIN {
+{
 	# Error messages used across Fawkss.
-	errors["unused-variable"] = "ERROR: Use of undeclared variable '%s' on line %d\n"
+	errors["variable-undeclared"] = "ERROR: Use of undeclared variable '%s' on line %d\n"
+	errors["include-cyclic"] = "ERROR: Cyclic include of file '%s' on line %d\n"
+	errors["include-not-found"] = "ERROR: Include file '%s' not found, defined in '%s' on line %d\n"
 
-	# Rule definitions. Each rule corresponds to a regular expression matching
-	# that rule on any given line.
+	# Rule definitions.
 	rules["comment"]           = "[ ]*//.*$"
 	rules["comment-exception"] = "['\"][^//]*//[^'\"]*['\"]"
 
-	rules["variable-name"]   = "\\$[a-zA-Z0-9_]+"
+	rules["variable-name"]   = "\\$[a-zA-Z0-9_-]+"
 	rules["variable-define"] = "^[ ]*" rules["variable-name"] "[ ]*:"
-}
+
+	rules["include"]          = "@include"
+	rules["include-variants"] = "%s%s,%s_%s,%s%s.scss,%s_%s.scss"
+
+	# Include file storage stack.
+	includes["length"] = 0
+	includes[includes["length"]] = FILENAME
+
+	# Read from include file stack line-by-line until stack is exhausted.
+	while (includes["length"] >= 0) {
+		while ((getline < includes[includes["length"]]) > 0) {
 
 # Rule definitions
 # ----------------
 #
-# This block contains rule definitions used across Fawkss. A rule is defined as
-# an exclusive match against a single line which always contines on to the next
-# line. As such, rules are not composable.
+# This block contains definitions for line manipulation rules used across Fawkss.
+# Rules may or may not be exclusive, i.e. the effects of one rule may cascade to
+# subsequent rules for the same line.
 #
+# > Match include declarations, for example:
+# >
+# >     @include "partials/colors"
+# >
+# > The above declaration may match file `_colors.scss` or `colors.scss` in the
+# > `partials` directory (which should exist on the same level as the calling
+# > file). Includes can be nested (i.e. included files may in turn include other
+# > files), and cyclic dependancies will return a fatal error.
+if ($1 ~ rules["include"]) {
+	# Remove quotes from path part.
+	path = substr($2, 2, length($2) - 2)
+
+	# Extract file and directory name parts from path, and append root directory
+	# path for current file to directory part.
+	dir = dirname(includes[includes["length"]]) dirname(path)
+	file = basename(path)
+
+	# Check filename against all potential filename variations.
+	exists = 0
+	split(rules["include-variants"], variants, ",")
+
+	for (v in variants) {
+		filename = sprintf(variants[v], dir, file)
+		if (file_exists(filename)) {
+			exists = 1
+			break
+		}
+	}
+
+	# Return error if include file was not found.
+	if (!exists) {
+		printf errors["include-not-found"], path, includes[includes["length"]], FNR | "cat >&2"
+		exit 1
+	}
+
+	# Check for cyclic includes.
+	if (filename in processed) {
+		printf errors["include-cyclic"], filename, FNR | "cat >&2"
+		exit 1
+	}
+
+	# Add filename to list of processed files.
+	processed[filename] = 1
+
+	# Push filename to stack of processed files and continue to next line.
+	includes["length"] += 1
+	includes[includes["length"]] = filename
+	continue
+}
+
 # > Match variable declarations, for example:
 # >
 # >     $varname: "value";
 # >
 # > Only one variable declaration can appear on a single line. Redeclaring a
 # > variable overrides the value set for that variable.
-$0 ~ rules["variable-define"] {
+if ($0 ~ rules["variable-define"]) {
 	# Split text in tokens.
 	split($0, token, ":")
 
@@ -84,16 +159,9 @@ $0 ~ rules["variable-define"] {
 
 	# Assign variable to the global variables table.
 	variables[name] = value
-	next
+	continue
 }
 
-# Line manipulation
-# -----------------
-#
-# This block contains line manipulation for rules defined in the previous section.
-# Each line manipulation rule may modify the current line but should not continue
-# to the next line, in order to allow for cascading effects.
-#
 # > Match inline comments, for example:
 # >
 # >     // This is an inline comment.
@@ -101,7 +169,10 @@ $0 ~ rules["variable-define"] {
 # >
 # > As opposed to regular CSS comments (i.e. `/* */`), inline comments are removed
 # > from the processed result. Inline comments inside strings are not removed.
-$0 ~ rules["comment"] {
+if ($0 ~ rules["comment"]) {
+	# Initialize local variables.
+	len = 0
+
 	# Remove any special cases from the line.
 	while (match($0, rules["comment-exception"])) {
 		special[len += 1] = RSTART ":" substr($0, RSTART, RLENGTH)
@@ -126,8 +197,6 @@ $0 ~ rules["comment"] {
 		str = substr(special[i], index(special[i], ":") + 1, length(special[i]))
 		$0 = substr($0, 0, pos - 1) str substr($0, pos, length($0))
 	}
-
-	len = 0
 }
 
 # > Match variable uses, for example:
@@ -136,15 +205,15 @@ $0 ~ rules["comment"] {
 # >
 # > Where `$white` is a previously declared variable. Attempting to use a variable
 # > that has not been defined yet will throw a fatal error.
-$0 ~ rules["variable-name"] {
+if ($0 ~ rules["variable-name"]) {
 	# Replace each variable use with its concrete value.
 	while (match($0, rules["variable-name"])) {
 		name = substr($0, RSTART, RLENGTH)
 
 		# Throw error and exit if variable used has not been declared.
 		if (variables[name] == "") {
-			printf errors["unused-variable"], name, NR | "cat >&2"
-			exit
+			printf errors["variable-undeclared"], name, FNR | "cat >&2"
+			exit 1
 		}
 
 		$0 = substr($0, 0, RSTART - 1) variables[name] substr($0, RSTART + RLENGTH, length($0))
@@ -159,16 +228,25 @@ $0 ~ rules["variable-name"] {
 #
 # > Match empty line. Consecutive empty lines do not print, and are instead
 # > squashed down to a single line.
-!NF {
+if (NF == 0) {
 	if ((newlines += 1) < 2) {
 		print
 	}
 
-	next
+	continue
 }
 
 # > Match non-black line. Resets newline count, used above.
-{
-	newlines = 0
-	print
+newlines = 0
+print
+
+}
+
+close(includes[includes["length"]])
+includes["length"] -= 1
+
+}
+
+exit 0
+
 }

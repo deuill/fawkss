@@ -1,0 +1,7 @@
+@include "other-stuff"
+
+.full {
+	content: 'This is a full include';
+	color: $col-white;
+	background-color : $col-black;
+}
