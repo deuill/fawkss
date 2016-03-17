@@ -1,7 +1,7 @@
-@include "other-stuff"
+@import "other-stuff"
 
 .full {
-	content: 'This is a full include';
+	content: 'This is a full import';
 	color: $col-white;
 	background-color : $col-black;
 }

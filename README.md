@@ -10,7 +10,7 @@ Currently, the following features are implemented:
 
   * C99/C++-style comments (i.e. `// This is a comment`)
   * Variables
-  * Includes (i.e. `@include "colors/common`)
+  * Imports (i.e. `@import "colors/common`)
 
 A full test-suite is provided (depending only on `make` and `awk`), which should serve as a good example of the existing feature-set.
 

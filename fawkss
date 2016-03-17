@@ -65,8 +65,8 @@ function file_exists(filename) {
 BEGIN {
 	# Error messages used across Fawkss.
 	errors["variable-undeclared"] = "ERROR: Use of undeclared variable '%s' on line %d\n"
-	errors["include-cyclic"] = "ERROR: Cyclic include of file '%s' in file '%s', line %d\n"
-	errors["include-not-found"] = "ERROR: Include file '%s' not found, defined in '%s' on line %d\n"
+	errors["import-cyclic"] = "ERROR: Cyclic import of file '%s' in file '%s', line %d\n"
+	errors["import-not-found"] = "ERROR: Import file '%s' not found, defined in '%s' on line %d\n"
 
 	# Rule definitions.
 	rules["comment"]           = "[ ]*//.*$"
@@ -75,26 +75,26 @@ BEGIN {
 	rules["variable-name"]   = "\\$[a-zA-Z0-9_-]+"
 	rules["variable-define"] = "^[ ]*" rules["variable-name"] "[ ]*:"
 
-	rules["include"]          = "@include"
-	rules["include-variants"] = "%s%s.scss,%s_%s.scss,%s%s,%s_%s"
+	rules["import"]          = "@import"
+	rules["import-variants"] = "%s%s.scss,%s_%s.scss,%s%s,%s_%s"
 }
 
-# Include stack initialization
+# Import stack initialization
 # ----------------------------
 #
-# This block initializes the include stack with the current filename, and reads
-# from the top line-by-line until the stack is exhausted. Include declarations
+# This block initializes the import stack with the current filename, and reads
+# from the top line-by-line until the stack is exhausted. Import declarations
 # switch the read context by pushing to the stack, and are popped when the read
 # operation reaches EOF or any error.
 
 {
-	# File include stack.
-	includes["length"] = 0
-	includes[includes["length"]] = FILENAME
+	# File import stack.
+	imports["length"] = 0
+	imports[imports["length"]] = FILENAME
 
-	# Read from include file stack line-by-line until stack is exhausted.
-	while (includes["length"] >= 0) {
-		while ((getline < includes[includes["length"]]) > 0) {
+	# Read from import file stack line-by-line until stack is exhausted.
+	while (imports["length"] >= 0) {
+		while ((getline < imports[imports["length"]]) > 0) {
 
 # Rule definitions
 # ----------------
@@ -103,26 +103,26 @@ BEGIN {
 # Rules may or may not be exclusive, i.e. the effects of one rule may cascade to
 # subsequent rules for the same line.
 #
-# > Match include declarations, for example:
+# > Match import declarations, for example:
 # >
-# >     @include "partials/colors"
+# >     @import "partials/colors"
 # >
 # > The above declaration may match file `_colors.scss` or `colors.scss` in the
 # > `partials` directory (which should exist on the same level as the calling
-# > file). Includes can be nested (i.e. included files may in turn include other
+# > file). Imports can be nested (i.e. imported files may in turn import other
 # > files), and cyclic dependancies will return a fatal error.
-if ($1 ~ rules["include"]) {
+if ($1 ~ rules["import"]) {
 	# Remove quotes from path part.
 	path = substr($2, 2, length($2) - 2)
 
 	# Extract file and directory name parts from path, and append root directory
 	# path for current file to directory part.
-	dir = dirname(includes[includes["length"]]) dirname(path)
+	dir = dirname(imports[imports["length"]]) dirname(path)
 	file = basename(path)
 
 	# Check filename against all potential filename variations.
 	exists = 0
-	split(rules["include-variants"], variants, ",")
+	split(rules["import-variants"], variants, ",")
 
 	for (v in variants) {
 		filename = sprintf(variants[v], dir, file)
@@ -132,15 +132,15 @@ if ($1 ~ rules["include"]) {
 		}
 	}
 
-	# Return error if include file was not found.
+	# Return error if import file was not found.
 	if (!exists) {
-		printf errors["include-not-found"], path, includes[includes["length"]], FNR | "cat >&2"
+		printf errors["import-not-found"], path, imports[imports["length"]], FNR | "cat >&2"
 		exit 1
 	}
 
-	# Check for cyclic includes.
+	# Check for cyclic imports.
 	if (filename in processed) {
-		printf errors["include-cyclic"], filename, includes[includes["length"]], FNR | "cat >&2"
+		printf errors["import-cyclic"], filename, imports[imports["length"]], FNR | "cat >&2"
 		exit 1
 	}
 
@@ -148,8 +148,8 @@ if ($1 ~ rules["include"]) {
 	processed[filename] = 1
 
 	# Push filename to stack of processed files and continue to next line.
-	includes["length"] += 1
-	includes[includes["length"]] = filename
+	imports["length"] += 1
+	imports[imports["length"]] = filename
 	continue
 }
 
@@ -252,20 +252,20 @@ print
 
 }
 
-# Include stack termination
+# Import stack termination
 # -------------------------
 #
-# This block contains termination rules for the include stack, as initialized in
+# This block contains termination rules for the import stack, as initialized in
 # aforementioned blocks.
 #
 # When a file on the stack reaches EOF or error, the file is closed and the
 # reference popped from the top of the stack. If the stack is left empty, the
 # program continues to cleanup and exit, as defined in the block below.
 
-close(includes[includes["length"]])
+close(imports[imports["length"]])
 
-delete processed[includes[includes["length"]]]
-includes["length"] -= 1
+delete processed[imports[imports["length"]]]
+imports["length"] -= 1
 
 }
 

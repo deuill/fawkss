@@ -1,11 +1,11 @@
 //
-// Simple include tests for Fawkss.
+// Simple import tests for Fawkss.
 //
 
 --- TEST ---
 
-@include "includes/partial"
-@include "includes/full.scss"
+@import "imports/partial"
+@import "imports/full.scss"
 
 --- EXPECTED ---
 
@@ -14,7 +14,7 @@
 }
 
 .full {
-	content: 'This is a full include';
+	content: 'This is a full import';
 	color: #fff;
 	background-color : #000;
 }
