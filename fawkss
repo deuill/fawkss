@@ -57,15 +57,15 @@ function file_exists(filename) {
 	return (system("[ -e '" filename "' ]") == 0) ? 1 : 0;
 }
 
-# Initialization
-# --------------
+# Global declarations
+# -------------------
 #
 # This block contains logic for initializing global variables used across Fawkss.
 
-{
+BEGIN {
 	# Error messages used across Fawkss.
 	errors["variable-undeclared"] = "ERROR: Use of undeclared variable '%s' on line %d\n"
-	errors["include-cyclic"] = "ERROR: Cyclic include of file '%s' on line %d\n"
+	errors["include-cyclic"] = "ERROR: Cyclic include of file '%s' in file '%s', line %d\n"
 	errors["include-not-found"] = "ERROR: Include file '%s' not found, defined in '%s' on line %d\n"
 
 	# Rule definitions.
@@ -76,9 +76,19 @@ function file_exists(filename) {
 	rules["variable-define"] = "^[ ]*" rules["variable-name"] "[ ]*:"
 
 	rules["include"]          = "@include"
-	rules["include-variants"] = "%s%s,%s_%s,%s%s.scss,%s_%s.scss"
+	rules["include-variants"] = "%s%s.scss,%s_%s.scss,%s%s,%s_%s"
+}
 
-	# Include file storage stack.
+# Include stack initialization
+# ----------------------------
+#
+# This block initializes the include stack with the current filename, and reads
+# from the top line-by-line until the stack is exhausted. Include declarations
+# switch the read context by pushing to the stack, and are popped when the read
+# operation reaches EOF or any error.
+
+{
+	# File include stack.
 	includes["length"] = 0
 	includes[includes["length"]] = FILENAME
 
@@ -130,7 +140,7 @@ if ($1 ~ rules["include"]) {
 
 	# Check for cyclic includes.
 	if (filename in processed) {
-		printf errors["include-cyclic"], filename, FNR | "cat >&2"
+		printf errors["include-cyclic"], filename, includes[includes["length"]], FNR | "cat >&2"
 		exit 1
 	}
 
@@ -242,10 +252,27 @@ print
 
 }
 
+# Include stack termination
+# -------------------------
+#
+# This block contains termination rules for the include stack, as initialized in
+# aforementioned blocks.
+#
+# When a file on the stack reaches EOF or error, the file is closed and the
+# reference popped from the top of the stack. If the stack is left empty, the
+# program continues to cleanup and exit, as defined in the block below.
+
 close(includes[includes["length"]])
+
+delete processed[includes[includes["length"]]]
 includes["length"] -= 1
 
 }
+
+# Cleanup
+# -------
+#
+# This block contains cleanup operations on end of execution.
 
 exit 0
 
