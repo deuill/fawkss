@@ -80,7 +80,7 @@ $(TESTS):
 	@$(FAWKSS) $@.test.$(TMPPID) > $@.actual.$(TMPPID)
 	$(eval te = $(shell date +"%s%3N"))
 
-	@printf ">> $(BOLD)Testing file '$@'...$(RESET) "
+	@printf ">> $(BOLD)Testing file '$@'...$(RESET)\t"
 
     # Generate diff between expected and actual results and print back to user.
 	@result=$$($(DIFF) -ud $@.expected.$(TMPPID) $@.actual.$(TMPPID) | tail -n +3); \
