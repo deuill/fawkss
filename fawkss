@@ -248,7 +248,7 @@ if (NF == 0) {
 	continue
 }
 
-# > Match non-black line. Resets newline count, used above.
+# > Print non-blank line, resetting the newline count, used above.
 newlines = 0
 print
 

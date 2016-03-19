@@ -102,6 +102,6 @@ help:
 	@printf "generating documentation or running test cases against the test suite.\n\n"
 	@printf "$(UNDERLINE)Available Tasks$(RESET)\n\n"
 	@awk -F                                                                        \
-		':|##' '/^##/ {c=$$2; getline; printf "$(BLUE)%10s$(RESET) %s\n", $$1, c}' \
+		':|##' '/^##/ {c=$$2; getline; printf "$(BLUE)%6s$(RESET) %s\n", $$1, c}' \
 		$(MAKEFILE_LIST)
 	@printf "\n"
