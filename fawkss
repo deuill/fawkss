@@ -65,8 +65,8 @@ function file_exists(filename) {
 BEGIN {
 	# Error messages used across Fawkss.
 	errors["variable-undeclared"] = "ERROR: Use of undeclared variable '%s' on line %d\n"
-	errors["import-cyclic"] = "ERROR: Cyclic import of file '%s' in file '%s', line %d\n"
-	errors["import-not-found"] = "ERROR: Import file '%s' not found, defined in '%s' on line %d\n"
+	errors["import-cyclic"]       = "ERROR: Cyclic import of file '%s' in file '%s', line %d\n"
+	errors["import-not-found"]    = "ERROR: Import file '%s' not found, defined in '%s' on line %d\n"
 
 	# Rule definitions.
 	rules["comment"]           = "[ ]*//.*$"
@@ -75,7 +75,8 @@ BEGIN {
 	rules["variable-name"]   = "\\$[a-zA-Z0-9_-]+"
 	rules["variable-define"] = "^[ ]*" rules["variable-name"] "[ ]*:"
 
-	rules["import"]          = "@import"
+	rules["import-path"]     = "['\"][^'\".]+(.scss)?[ ]*['\"]"
+	rules["import-define"]   = "[ ]*@import[ ]+" rules["import-path"] "[ ]*;"
 	rules["import-variants"] = "%s%s.scss,%s_%s.scss,%s%s,%s_%s"
 }
 
@@ -105,15 +106,16 @@ BEGIN {
 #
 # > Match import declarations, for example:
 # >
-# >     @import "partials/colors"
+# >     @import "partials/colors";
 # >
 # > The above declaration may match file `_colors.scss` or `colors.scss` in the
 # > `partials` directory (which should exist on the same level as the calling
 # > file). Imports can be nested (i.e. imported files may in turn import other
 # > files), and cyclic dependancies will return a fatal error.
-if ($1 ~ rules["import"]) {
-	# Remove quotes from path part.
-	path = substr($2, 2, length($2) - 2)
+if ($0 ~ rules["import-define"]) {
+	# Extract path part from import declaration.
+	match($0, rules["import-path"])
+	path = substr($0, RSTART + 1, RLENGTH - 2)
 
 	# Extract file and directory name parts from path, and append root directory
 	# path for current file to directory part.
