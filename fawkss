@@ -16,11 +16,18 @@
 # This section contains global helper functions, used across different rules, as
 # defined in the next section below.
 #
-# > Function `lastindex` returns the index of the last occurence of a substring
-# > `s` in `str`, or -1 if the substring was not found.
-function lastindex(str, s) {
-	match(str, ".*" s)
-	return max(RSTART + RLENGTH - 1, -1)
+# > Function `firstindex` returns the index of the first occurence of a regular
+# > expression `r` in `str`, or 0 if the none was found.
+function firstindex(str, r) {
+	match(str, r)
+	return max(RSTART, 0)
+}
+
+# > Function `lastindex` returns the index of the last occurence of a regular
+# > expression `r` in `str`, or 0 if the none was found.
+function lastindex(str, r) {
+	match(str, ".*" r)
+	return max(RSTART + RLENGTH - 1, 0)
 }
 
 # > Function `max` finds and returns greatest between two numbers.
@@ -31,10 +38,9 @@ function max(x, y) {
 # > Function `trim` removes characters (whitespace by default) off both ends of
 # > the string passed and returns the modified string.
 function trim(str, ch) {
-	ch = (ch != "") ? ch : ":space:"
-	match(str, "[" ch "]*[^[" ch "]]+[" ch "]*")
-
-	return substr(str, RSTART, RLENGTH)
+	ch = (ch != "") ? ch : " "
+	str = substr(str, firstindex(str, "[^" ch "]"))
+	return substr(str, 0, lastindex(str, "[^" ch "]"))
 }
 
 # > Function `basename` strips the directory name from file paths and returns
@@ -64,9 +70,9 @@ function file_exists(filename) {
 
 BEGIN {
 	# Error messages used across Fawkss.
-	errors["variable-undeclared"] = "ERROR: Use of undeclared variable '%s' on line %d\n"
+	errors["variable-undeclared"] = "ERROR: Use of undeclared variable '%s' in file '%s', line %d\n"
 	errors["import-cyclic"]       = "ERROR: Cyclic import of file '%s' in file '%s', line %d\n"
-	errors["import-not-found"]    = "ERROR: Import file '%s' not found, defined in '%s' on line %d\n"
+	errors["import-not-found"]    = "ERROR: Import file '%s' not found, defined in '%s', line %d\n"
 
 	# Rule definitions.
 	rules["comment"]           = "[ ]*//.*$"
@@ -224,7 +230,7 @@ if ($0 ~ rules["variable-name"]) {
 
 		# Throw error and exit if variable used has not been declared.
 		if (variables[name] == "") {
-			printf errors["variable-undeclared"], name, FNR | "cat >&2"
+			printf errors["variable-undeclared"], name, imports[imports["length"]], FNR | "cat >&2"
 			exit 1
 		}
 
