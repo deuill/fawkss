@@ -1,0 +1,24 @@
+//
+// Simple mixin tests for Fawkss.
+//
+
+--- TEST ---
+
+// Simple mixin with no parameters or parent selectors.
+@mixin invisible-ink {
+	color: white;
+	background-color: white;
+}
+
+body {
+	@include invisible-ink;
+}
+
+--- EXPECTED ---
+
+body {
+	color: white;
+	background-color: white;
+}
+
+--- END ---

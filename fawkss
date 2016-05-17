@@ -70,20 +70,34 @@ function file_exists(filename) {
 
 BEGIN {
 	# Error messages used across Fawkss.
-	errors["variable-undeclared"] = "ERROR: Use of undeclared variable '%s' in file '%s', line %d\n"
-	errors["import-cyclic"]       = "ERROR: Cyclic import of file '%s' in file '%s', line %d\n"
-	errors["import-not-found"]    = "ERROR: Import file '%s' not found, defined in '%s', line %d\n"
+	errors["variable-undefined"] = "ERROR: Use of undefined variable '%s' in file '%s', line %d\n"
+
+	errors["import-cyclic"]    = "ERROR: Cyclic import of file '%s' in file '%s', line %d\n"
+	errors["import-not-found"] = "ERROR: Import file '%s' not found, defined in '%s', line %d\n"
+
+	errors["mixin-exists"]    = "ERROR: Mixin '%s' already defined, line %d\n"
+	errors["mixin-undefined"] = "ERROR: Use of undefined mixin '%s', line %d\n"
 
 	# Rule definitions.
-	rules["comment"]           = "[ ]*//.*$"
+	rules["comment-define"]    = "[ ]*//.*$"
 	rules["comment-exception"] = "['\"][^//]*//[^'\"]*['\"]"
 
 	rules["variable-name"]   = "\\$[a-zA-Z0-9_-]+"
-	rules["variable-define"] = "^[ ]*" rules["variable-name"] "[ ]*:"
+	rules["variable-define"] = "^[\t ]*" rules["variable-name"] "[ ]*:"
 
 	rules["import-path"]     = "['\"][^'\".]+(.scss)?[ ]*['\"]"
-	rules["import-define"]   = "[ ]*@import[ ]+" rules["import-path"] "[ ]*;"
+	rules["import-define"]   = "^[\t ]*@import[ ]+" rules["import-path"] "[ ]*;"
 	rules["import-variants"] = "%s%s.scss,%s_%s.scss,%s%s,%s_%s"
+
+	rules["mixin-name"]  = "[a-zA-Z0-9_-]+"
+	rules["mixin-param"] = rules["variable-name"] "([ ]*:[ ]*[^,;]+)?"
+	rules["mixin-attr"]  = "(" rules["variable-name"] "[ ]*:[ ]*)?[^,;]+"
+
+	rules["mixin-params"] = "\\([ ]*" rules["mixin-param"] "([ ]*,[ ]*" rules["mixin-param"] ")*[ ]*\\)"
+	rules["mixin-attrs"]  = "\\([ ]*" rules["mixin-attr"] "([ ]*,[ ]*" rules["mixin-attr"] ")*[ ]*\\)"
+
+	rules["mixin-define"]  = "^[\t ]*@mixin[ ]+" rules["mixin-name"] "(" rules["mixin-params"] ")?"
+	rules["mixin-include"] = "^[\t ]*@include[ ]+" rules["mixin-name"] "(" rules["mixin-attrs"] ")?[ ]*;"
 }
 
 # Import stack initialization
@@ -96,12 +110,13 @@ BEGIN {
 
 {
 	# File import stack.
+	imports["cmd"] = ""
 	imports["length"] = 0
 	imports[imports["length"]] = FILENAME
 
 	# Read from import file stack line-by-line until stack is exhausted.
 	while (imports["length"] >= 0) {
-		while ((getline < imports[imports["length"]]) > 0) {
+		while ((imports["cmd"] != "" && (imports["cmd"] | getline) > 0) || (getline < imports[imports["length"]]) > 0) {
 
 # Rule definitions
 # ----------------
@@ -161,6 +176,43 @@ if ($0 ~ rules["import-define"]) {
 	continue
 }
 
+# > Match mixin declarations, for example:
+# >
+# >     @mixin big-font {
+# >         font-size: 200%;
+# >     }
+# >
+# > Mixin declarations can then be used using `@include`, defined below.
+if ($0 ~ rules["mixin-define"]) {
+	# Get mixin name.
+	match($2, rules["mixin-name"])
+	name = substr($2, RSTART, RLENGTH)
+
+	# Check for unique mixin name.
+	if (name in mixins) {
+		printf errors["mixin-exists"], name, FNR | "cat >&2"
+		exit 1
+	}
+
+	# Store mixin parameters, if any.
+	match($0, rules["mixin-param-list"])
+	if (RSTART > 0) {
+		mixins[name ":params"] = substr($0, RSTART + 1, RLENGTH - 2)
+	}
+
+	# Read mixin contents until we encounter a closing bracket. The bracket must
+	# appear on its own line, otherwise the final member of the mixin will not
+	# be parsed.
+	while ((getline line < imports[imports["length"]]) > 0 && line !~ "}" ) {
+		mixins[name] = mixins[name] "\n" line
+	}
+
+	# Remove leading newline from mixin.
+	mixins[name] = substr(mixins[name], 2)
+
+	continue
+}
+
 # > Match variable declarations, for example:
 # >
 # >     $varname: "value";
@@ -187,7 +239,7 @@ if ($0 ~ rules["variable-define"]) {
 # >
 # > As opposed to regular CSS comments (i.e. `/* */`), inline comments are removed
 # > from the processed result. Inline comments inside strings are not removed.
-if ($0 ~ rules["comment"]) {
+if ($0 ~ rules["comment-define"]) {
 	# Initialize local variables.
 	len = 0
 
@@ -198,7 +250,7 @@ if ($0 ~ rules["comment"]) {
 	}
 
 	# Remove inline comments from line.
-	while (match($0, rules["comment"])) {
+	while (match($0, rules["comment-define"])) {
 		$0 = substr($0, 0, RSTART - 1) substr($0, RSTART + RLENGTH, length($0))
 	}
 
@@ -217,6 +269,28 @@ if ($0 ~ rules["comment"]) {
 	}
 }
 
+# > Match mixin imports, for example:
+# >
+# >     body {
+# >         @include big-font;
+# >     }
+# >
+# > Attempting to use an undefined mixin will throw a fatal error.
+if ($0 ~ rules["mixin-include"]) {
+	# Get mixin name.
+	match($2, rules["mixin-name"])
+	name = substr($2, RSTART, RLENGTH)
+
+	# Check for invalid mixin name.
+	if (!name in mixins) {
+		printf errors["mixin-undefined"], name, FNR | "cat >&2"
+		exit 1
+	}
+
+	imports["cmd"] = "echo '" mixins[name] "'"
+	continue
+}
+
 # > Match variable uses, for example:
 # >
 # >     :root{background: $white;}
@@ -230,7 +304,7 @@ if ($0 ~ rules["variable-name"]) {
 
 		# Throw error and exit if variable used has not been declared.
 		if (variables[name] == "") {
-			printf errors["variable-undeclared"], name, imports[imports["length"]], FNR | "cat >&2"
+			printf errors["variable-undefined"], name, imports[imports["length"]], FNR | "cat >&2"
 			exit 1
 		}
 
@@ -270,10 +344,15 @@ print
 # reference popped from the top of the stack. If the stack is left empty, the
 # program continues to cleanup and exit, as defined in the block below.
 
-close(imports[imports["length"]])
+if (imports["cmd"] != "") {
+	close(imports["cmd"])
+	imports["cmd"] = ""
+} else {
+	close(imports[imports["length"]])
 
-delete processed[imports[imports["length"]]]
-imports["length"] -= 1
+	delete processed[imports[imports["length"]]]
+	imports["length"] -= 1
+}
 
 }
 
