@@ -10,38 +10,41 @@ Currently, the following SASS features are implemented, in varying degrees:
 
 ### C99/C++-style comments
 
-Lines containing comments using the `//` syntax allow for including commentary that does not appear in the processed CSS output. Support for the common `/* */` syntax remains the same, and affected lines are not removed from the final output.
+Lines that contain comments using the `//` syntax are removed from the final output, and are useful for including commentary that should otherwise not be available to end-users.
+
+Comments using the `/* */` syntax are not handled, and remain intact in the final output.
 
 ### Variables
 
-Variables can be declared and used with the following syntax:
+Variables can be defined and used with the following syntax:
 
 ```scss
 $variable-name: 10px;
 width: $variable-name;
 ```
 
-All variables are defined in the global scope, regardless of where they've been defined. Variable names can contain alphanumeric characters, as well as underscore and hyphen characters, and are always prefixed with a dollar sign.
+All variables are defined in the global scope, and cannot be used before definition. Using an undefined variable is a fatal error, and halts execution. Variable names can contain alphanumeric characters, as well as underscore and hyphen characters, and are always prefixed with a dollar sign.
 
-Only one variable declaration can appear on a single line, though once defined, a variable can be used as many times as needed, including on the same line. Redeclaring a variable overrides its previous value.
-
+Variables must be appear on their own line, and cannot be mixed with other declarations. Redefining a variable overrides its previous value, with no warning message emitted.
 
 ### Imports
 
-CSS import declarations are extended for including files transparently in the same output file. Imports reference files with the `.scss` extension, but will resolve to such files even if not specified in the import declaration. Thus, for a file of name `common/_colors.scss`, the following declarations are equivalent:
+CSS import declarations are extended for concatenating SCSS files together transparently. For a file `common/_colors.scss`, the following declarations are equivalent:
 
 ```scss
-@import "common/colors"
-@import "common/colors.scss"
-@import "common/_colors"
-@import "common_colors.scss"
+@import "common/colors";
+@import "common/colors.scss";
+@import "common/_colors";
+@import "common_colors.scss";
 ```
 
-Files with leading underscores are handled as partials with additional restrictions by SASS, though Fawkss makes no such distinctions.
+Unlike SASS, files with leading underscores are not handled especially as partials.
 
 ### Mixins
 
-Currently supported are mixins with optional parameters (including default values) and nested mixins. Features such as variadic parameters and mixins with parent selectors are forthcoming.
+Mixin support is currently minimal, with parameters (including default values) and nested mixins handled.
+
+Features such as variadic parameters and mixins with parent selectors are forthcoming.
 
 ## Roadmap
 
