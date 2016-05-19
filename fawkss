@@ -63,6 +63,23 @@ function file_exists(filename) {
 	return (system("[ -e '" filename "' ]") == 0) ? 1 : 0;
 }
 
+# > Function 'read_line' gets the next line from import, as specified by `type`,
+# > pointed to by `name`. Two types are currently specified, "file" and "cmd".
+# >
+# > Type "file" will attempt to get a newline-delimited line of a file pointed
+# > to by `name`, and type "cmd" will get a newline-delimited line from a shell
+# > command string.
+function read_line(name, type) {
+	switch (type) {
+	case "file":
+		return (getline < name)
+	case "cmd":
+		return (name | getline)
+	}
+
+	return 0
+}
+
 # Global declarations
 # -------------------
 #
@@ -78,6 +95,8 @@ BEGIN {
 	errors["mixin-exists"]    = "ERROR: Mixin '%s' already defined, line %d\n"
 	errors["mixin-undefined"] = "ERROR: Use of undefined mixin '%s', line %d\n"
 
+	errors["mixin-param-undefined"] = "ERROR: Parameter '%s' undefined for mixin '%s', line %d\n"
+
 	# Rule definitions.
 	rules["comment-define"]    = "[ ]*//.*$"
 	rules["comment-exception"] = "['\"][^//]*//[^'\"]*['\"]"
@@ -91,16 +110,16 @@ BEGIN {
 
 	rules["mixin-name"]  = "[a-zA-Z0-9_-]+"
 	rules["mixin-param"] = rules["variable-name"] "([ ]*:[ ]*[^,;]+)?"
-	rules["mixin-attr"]  = "(" rules["variable-name"] "[ ]*:[ ]*)?[^,;]+"
+	rules["mixin-arg"]  = "(" rules["variable-name"] "[ ]*:[ ]*)?[^,;]+"
 
 	rules["mixin-params"] = "\\([ ]*" rules["mixin-param"] "([ ]*,[ ]*" rules["mixin-param"] ")*[ ]*\\)"
-	rules["mixin-attrs"]  = "\\([ ]*" rules["mixin-attr"] "([ ]*,[ ]*" rules["mixin-attr"] ")*[ ]*\\)"
+	rules["mixin-args"]   = "\\([ ]*" rules["mixin-arg"] "([ ]*,[ ]*" rules["mixin-arg"] ")*[ ]*\\)"
 
 	rules["mixin-define"]  = "^[\t ]*@mixin[ ]+" rules["mixin-name"] "(" rules["mixin-params"] ")?"
-	rules["mixin-include"] = "^[\t ]*@include[ ]+" rules["mixin-name"] "(" rules["mixin-attrs"] ")?[ ]*;"
+	rules["mixin-include"] = "^[\t ]*@include[ ]+" rules["mixin-name"] "(" rules["mixin-args"] ")?[ ]*;"
 }
 
-# Import stack initialization
+# Import stack initialisation
 # ----------------------------
 #
 # This block initializes the import stack with the current filename, and reads
@@ -110,13 +129,13 @@ BEGIN {
 
 {
 	# File import stack.
-	imports["cmd"] = ""
 	imports["length"] = 0
-	imports[imports["length"]] = FILENAME
+	imports[imports["length"] ":name"] = FILENAME
+	imports[imports["length"] ":type"] = "file"
 
 	# Read from import file stack line-by-line until stack is exhausted.
 	while (imports["length"] >= 0) {
-		while ((imports["cmd"] != "" && (imports["cmd"] | getline) > 0) || (getline < imports[imports["length"]]) > 0) {
+		while (read_line(imports[imports["length"] ":name"], imports[imports["length"] ":type"]) > 0) {
 
 # Rule definitions
 # ----------------
@@ -140,7 +159,7 @@ if ($0 ~ rules["import-define"]) {
 
 	# Extract file and directory name parts from path, and append root directory
 	# path for current file to directory part.
-	dir = dirname(imports[imports["length"]]) dirname(path)
+	dir = dirname(imports[imports["length"] ":name"]) dirname(path)
 	file = basename(path)
 
 	# Check filename against all potential filename variations.
@@ -157,22 +176,26 @@ if ($0 ~ rules["import-define"]) {
 
 	# Return error if import file was not found.
 	if (!exists) {
-		printf errors["import-not-found"], path, imports[imports["length"]], FNR | "cat >&2"
+		printf errors["import-not-found"], path, imports[imports["length"] ":name"], FNR | "cat >&2"
 		exit 1
 	}
 
 	# Check for cyclic imports.
 	if (filename in processed) {
-		printf errors["import-cyclic"], filename, imports[imports["length"]], FNR | "cat >&2"
+		printf errors["import-cyclic"], filename, imports[imports["length"] ":name"], FNR | "cat >&2"
 		exit 1
 	}
 
-	# Add filename to list of processed files.
+	# Add filename to list of processed imports.
 	processed[filename] = 1
 
-	# Push filename to stack of processed files and continue to next line.
+	# Push filename to stack of imports.
 	imports["length"] += 1
-	imports[imports["length"]] = filename
+	imports[imports["length"] ":name"] = filename
+
+	# Specify import type as file.
+	imports[imports["length"] ":type"] = "file"
+
 	continue
 }
 
@@ -195,15 +218,15 @@ if ($0 ~ rules["mixin-define"]) {
 	}
 
 	# Store mixin parameters, if any.
-	match($0, rules["mixin-param-list"])
-	if (RSTART > 0) {
+	match($0, rules["mixin-params"])
+	if (RLENGTH > 0) {
 		mixins[name ":params"] = substr($0, RSTART + 1, RLENGTH - 2)
 	}
 
 	# Read mixin contents until we encounter a closing bracket. The bracket must
 	# appear on its own line, otherwise the final member of the mixin will not
 	# be parsed.
-	while ((getline line < imports[imports["length"]]) > 0 && line !~ "}" ) {
+	while ((getline line < imports[imports["length"] ":name"]) > 0 && line !~ "}" ) {
 		mixins[name] = mixins[name] "\n" line
 	}
 
@@ -229,6 +252,64 @@ if ($0 ~ rules["variable-define"]) {
 
 	# Assign variable to the global variables table.
 	variables[name] = value
+	continue
+}
+
+# > Match mixin includes, for example:
+# >
+# >     body {
+# >         @include big-font;
+# >     }
+# >
+# > Attempting to use an undefined mixin will throw a fatal error.
+if ($0 ~ rules["mixin-include"]) {
+	# Get mixin name.
+	match($2, rules["mixin-name"])
+	name = substr($2, RSTART, RLENGTH)
+
+	# Check for invalid mixin name.
+	if (!name in mixins) {
+		printf errors["mixin-undefined"], name, FNR | "cat >&2"
+		exit 1
+	}
+
+	# Copy mixin contents for further processing.
+	contents = mixins[name]
+
+	# Check if mixin defines parameters, and attempt to use arguments passed.
+	if (name ":params" in mixins) {
+		# Split parameters as individual tokens.
+		split(mixins[name ":params"], params, "[ ]*,[ ]*")
+
+		# Get arguments passed to include declaration.
+		match($0, rules["mixin-args"])
+		split(substr($0, RSTART + 1, RLENGTH - 2), args, "[ ]*,[ ]*")
+
+		# Check arguments against parameters, substituting each with the other,
+		# using default values where available when an argument hasn't been passed.
+		for (i in params) {
+			# Attempt to split parameter in name and value parts.
+			split(params[i], p, "[ ]*:[ ]*")
+
+			# Throw error if parameter has no default value and no corresponding
+			# argument has been passed.
+			if (length(p) == 1 && args[i] == "") {
+				printf errors["mixin-param-undefined"], p[1], name, FNR | "cat >&2"
+				exit 1
+			}
+
+			# Replace parameters with the concrete argument values.
+			gsub("\\" p[1], (args[i] == "") ? p[2] : args[i], contents)
+		}
+	}
+
+	# Push mixin to import stack.
+	imports["length"] += 1
+	imports[imports["length"] ":name"] = "echo '" contents "'"
+
+	# Specify import type as command.
+	imports[imports["length"] ":type"] = "cmd"
+
 	continue
 }
 
@@ -269,28 +350,6 @@ if ($0 ~ rules["comment-define"]) {
 	}
 }
 
-# > Match mixin imports, for example:
-# >
-# >     body {
-# >         @include big-font;
-# >     }
-# >
-# > Attempting to use an undefined mixin will throw a fatal error.
-if ($0 ~ rules["mixin-include"]) {
-	# Get mixin name.
-	match($2, rules["mixin-name"])
-	name = substr($2, RSTART, RLENGTH)
-
-	# Check for invalid mixin name.
-	if (!name in mixins) {
-		printf errors["mixin-undefined"], name, FNR | "cat >&2"
-		exit 1
-	}
-
-	imports["cmd"] = "echo '" mixins[name] "'"
-	continue
-}
-
 # > Match variable uses, for example:
 # >
 # >     :root{background: $white;}
@@ -304,7 +363,7 @@ if ($0 ~ rules["variable-name"]) {
 
 		# Throw error and exit if variable used has not been declared.
 		if (variables[name] == "") {
-			printf errors["variable-undefined"], name, imports[imports["length"]], FNR | "cat >&2"
+			printf errors["variable-undefined"], name, imports[imports["length"] ":name"], FNR | "cat >&2"
 			exit 1
 		}
 
@@ -344,15 +403,10 @@ print
 # reference popped from the top of the stack. If the stack is left empty, the
 # program continues to cleanup and exit, as defined in the block below.
 
-if (imports["cmd"] != "") {
-	close(imports["cmd"])
-	imports["cmd"] = ""
-} else {
-	close(imports[imports["length"]])
+close(imports[imports["length"] ":name"])
+delete processed[imports[imports["length"] ":name"]]
 
-	delete processed[imports[imports["length"]]]
-	imports["length"] -= 1
-}
+imports["length"] -= 1
 
 }
 
