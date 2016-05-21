@@ -1,0 +1,25 @@
+//
+// Tests mixins with default parameters and overrides.
+//
+
+--- TEST ---
+
+$color-1: black;
+$color-2: white;
+$color-3: red;
+
+@mixin gradient-me($color-1: purple, $color-2: black) {
+	linear-gradient(left, $color-1, $color-2, $color-3);
+}
+
+#rainbox-box {
+	@include gradient-me(green);
+}
+
+--- EXPECTED ---
+
+#rainbox-box {
+	linear-gradient(left, green, black, red);
+}
+
+--- END ---

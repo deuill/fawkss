@@ -1,0 +1,29 @@
+//
+// Tests nested mixins.
+//
+
+--- TEST ---
+
+@mixin invisible-ink {
+	color: white;
+	background-color: white;
+}
+
+@mixin invisible-box {
+	@include invisible-ink;
+	border: none;
+}
+
+#boxy-mcboxface {
+	@include invisible-box;
+}
+
+--- EXPECTED ---
+
+#boxy-mcboxface {
+	color: white;
+	background-color: white;
+	border: none;
+}
+
+--- END ---

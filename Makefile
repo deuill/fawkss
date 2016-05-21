@@ -16,7 +16,7 @@ DIFF = $(shell which colordiff || which diff)
 TMPPID = $(shell echo $$PPID)
 
 # Test files to execute.
-TESTS ?= $(shell find tests/*.scss)
+TESTS ?= $(shell find tests/*/*.scss)
 
 # Color & style definitions.
 BOLD      = \033[1m
@@ -80,7 +80,7 @@ $(TESTS):
 	@$(FAWKSS) $@.test.$(TMPPID) > $@.actual.$(TMPPID)
 	$(eval te = $(shell date +"%s%3N"))
 
-	@printf ">> $(BOLD)Testing file '$@'...$(RESET)\t"
+	@printf ">> $(BOLD)Testing file '$@'...$(RESET) "
 
     # Generate diff between expected and actual results and print back to user.
 	@result=$$($(DIFF) -ud $@.expected.$(TMPPID) $@.actual.$(TMPPID) | tail -n +3); \

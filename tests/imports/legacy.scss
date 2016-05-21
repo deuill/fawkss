@@ -1,0 +1,19 @@
+//
+// Tests that "legacy" or CSS imports are not handled.
+//
+
+--- TEST ---
+
+@import "foo.css";
+@import "foo" screen;
+@import "http://foo.com/bar";
+@import url(foo);
+
+--- EXPECTED ---
+
+@import "foo.css";
+@import "foo" screen;
+@import "http://foo.com/bar";
+@import url(foo);
+
+--- END ---

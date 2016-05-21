@@ -1,0 +1,22 @@
+//
+// Tests integration of nested imports for full and partial SCSS files.
+//
+
+--- TEST ---
+
+@import  "common/partial"  ;
+	@import "common/full.scss";
+
+--- EXPECTED ---
+
+.partial {
+	content: 'This is a partial';
+}
+
+.full {
+	content: 'This is a full import';
+	color: #fff;
+	background-color : #000;
+}
+
+--- END ---

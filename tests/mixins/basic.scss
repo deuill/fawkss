@@ -1,0 +1,23 @@
+//
+// Tests basic mixin functionality.
+//
+
+--- TEST ---
+
+@mixin invisible-ink {
+	color: white;
+	background-color: white;
+}
+
+body {
+	@include invisible-ink;
+}
+
+--- EXPECTED ---
+
+body {
+	color: white;
+	background-color: white;
+}
+
+--- END ---
